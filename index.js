@@ -514,7 +514,7 @@ function session(options) {
       }
 
       return cookieId !== req.sessionID
-        ? saveUninitializedSession || isModified(req.session)
+        ? saveUninitializedSession || isModified(req.session) || wasSaved
         : rollingSessions || req.session.cookie.expires != null && isModified(req.session);
     }
 

@@ -70,6 +70,54 @@ function Session(req, data) {
     }
   }
 
+  // 缓存已代理的对象
+  var proxyCache = new WeakMap();
+
+  // 递归创建深度代理,用于监听嵌套对象的修改
+  function createDeepProxy(obj, root) {
+    // 如果已经代理过,直接返回
+    if (proxyCache.has(obj)) {
+      return proxyCache.get(obj);
+    }
+
+    // 创建代理
+    var proxy = new Proxy(obj, {
+      get: function(target, prop) {
+        var value = target[prop];
+        // 如果值是普通对象,递归代理
+        if (value && typeof value === 'object' && value.constructor === Object) {
+          return createDeepProxy(value, root);
+        }
+        return value;
+      },
+
+      set: function(target, prop, value) {
+        var oldValue = target[prop];
+        target[prop] = value;
+
+        // 只有值真正改变时才标记为已修改
+        if (oldValue !== value && !root._initializing && !root._locked) {
+          root._modified = true;
+        }
+
+        return true;
+      },
+
+      deleteProperty: function(target, prop) {
+        if (prop in target && !root._locked) {
+          delete target[prop];
+          if (!root._initializing) {
+            root._modified = true;
+          }
+        }
+        return true;
+      }
+    });
+
+    proxyCache.set(obj, proxy);
+    return proxy;
+  }
+
   // 标记用于 cookie 代理缓存
   var cookieProxy = null;
 
@@ -99,6 +147,11 @@ function Session(req, data) {
         return cookieProxy;
       }
 
+      // 如果值是普通对象(非 cookie),返回深度代理以监听嵌套修改
+      if (value && typeof value === 'object' && value.constructor === Object) {
+        return createDeepProxy(value, obj);
+      }
+
       return value;
     },
 
@@ -113,7 +166,10 @@ function Session(req, data) {
         // 忽略内部属性、req、id、cookie 的修改标记
         if (prop !== '_modified' && prop !== '_locked' &&
             prop !== 'req' && prop !== 'id' && prop !== 'cookie') {
-          obj._modified = true;
+          // 只有在值真正改变时才标记为已修改
+          if (obj[prop] !== value) {
+            obj._modified = true;
+          }
         }
 
         // 设置新的 cookie 对象时清除缓存,但不标记为已修改
