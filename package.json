@@ -1,6 +1,6 @@
 {
-  "name": "express-session",
-  "version": "1.19.0",
+  "name": "@ijs/express-session",
+  "version": "119.0.0",
   "description": "Simple session middleware for Express",
   "author": "TJ Holowaychuk <tj@vision-media.ca> (http://tjholowaychuk.com)",
   "contributors": [
@@ -46,5 +46,9 @@
     "test-ci": "nyc --reporter=lcov --reporter=text npm test",
     "test-cov": "nyc npm test",
     "version": "node scripts/version-history.js && git add HISTORY.md"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   }
 }
