@@ -216,9 +216,8 @@ function session(options) {
     // req.secret is passed from the cookie parser middleware
     var secrets = secret || [req.secret];
 
-    var originalHash;
     var originalId;
-    var savedHash;
+    var wasSaved = false;
     var touched = false
 
     // expose store
@@ -334,6 +333,11 @@ function session(options) {
         return writetop();
       }
 
+      // 锁定 session,防止在响应结束后被修改
+      if (req.session) {
+        req.session._locked = true;
+      }
+
       // no session to save
       if (!req.session) {
         debug('no session');
@@ -352,6 +356,10 @@ function session(options) {
             defer(next, err);
           }
 
+          // 保存后锁定 session
+          if (req.session) {
+            req.session._locked = true;
+          }
           writeend();
         });
 
@@ -365,10 +373,19 @@ function session(options) {
           }
 
           debug('touched');
+          // touch 后锁定 session
+          if (req.session) {
+            req.session._locked = true;
+          }
           writeend();
         });
 
         return writetop();
+      }
+
+      // 即使不保存也要锁定 session
+      if (req.session) {
+        req.session._locked = true;
       }
 
       return _end.call(res, chunk, encoding);
@@ -378,7 +395,6 @@ function session(options) {
     function generate() {
       store.generate(req);
       originalId = req.sessionID;
-      originalHash = hash(req.session);
       wrapmethods(req.session);
     }
 
@@ -386,10 +402,9 @@ function session(options) {
     function inflate (req, sess) {
       store.createSession(req, sess)
       originalId = req.sessionID
-      originalHash = hash(sess)
 
       if (!resaveSession) {
-        savedHash = originalHash
+        wasSaved = true
       }
 
       wrapmethods(req.session)
@@ -415,10 +430,22 @@ function session(options) {
         _reload.call(this, rewrapmethods(this, callback))
       }
 
-      function save() {
+      function save(callback) {
         debug('saving %s', this.id);
-        savedHash = hash(this);
-        _save.apply(this, arguments);
+        var sess = this;
+
+        // 包装回调,在保存成功后重置 _modified
+        function done(err) {
+          if (!err) {
+            wasSaved = true;
+            sess._modified = false;
+          }
+          if (callback) {
+            callback(err);
+          }
+        }
+
+        _save.call(this, done);
       }
 
       Object.defineProperty(sess, 'reload', {
@@ -437,13 +464,14 @@ function session(options) {
     }
 
     // check if session has been modified
+    // 注意: cookie 的修改不算作 session 修改(与原始 hash 实现一致)
     function isModified(sess) {
-      return originalId !== sess.id || originalHash !== hash(sess);
+      return originalId !== sess.id || sess._modified === true;
     }
 
     // check if session has been saved
     function isSaved(sess) {
-      return originalId === sess.id && savedHash === hash(sess);
+      return originalId === sess.id && wasSaved && !sess._modified;
     }
 
     // determine if session should be destroyed
@@ -459,9 +487,12 @@ function session(options) {
         return false;
       }
 
-      return !saveUninitializedSession && !savedHash && cookieId !== req.sessionID
-        ? isModified(req.session)
-        : !isSaved(req.session)
+      // 如果不保存未初始化的 session,且 session 是新的,则只有在修改时才保存
+      if (!saveUninitializedSession && cookieId !== req.sessionID) {
+        return isModified(req.session);
+      }
+
+      return !isSaved(req.session)
     }
 
     // determine if session should be touched
