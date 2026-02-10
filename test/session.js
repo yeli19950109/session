@@ -1293,6 +1293,222 @@ describe('session()', function(){
         })
       })
 
+      it('should detect array modifications using push()', function (done) {
+        var store = new session.MemoryStore()
+        var server = createServer({ store: store, resave: false }, function (req, res) {
+          req.session.items = req.session.items || []
+          req.session.items.push('new-item')
+          res.end(String(req.session.items.length))
+        })
+
+        request(server)
+        .get('/')
+        .expect(shouldSetSessionInStore(store))
+        .expect(200, '1', function (err, res) {
+          if (err) return done(err)
+          request(server)
+          .get('/')
+          .set('Cookie', cookie(res))
+          .expect(shouldSetSessionInStore(store))
+          .expect(200, '2', done)
+        })
+      })
+
+      it('should detect array modifications using splice()', function (done) {
+        var store = new session.MemoryStore()
+        var server = createServer({ store: store, resave: false }, function (req, res) {
+          if (!req.session.items) {
+            req.session.items = ['a', 'b', 'c', 'd']
+          } else {
+            req.session.items.splice(1, 1)
+          }
+          res.end(req.session.items.join(','))
+        })
+
+        request(server)
+        .get('/')
+        .expect(shouldSetSessionInStore(store))
+        .expect(200, 'a,b,c,d', function (err, res) {
+          if (err) return done(err)
+          request(server)
+          .get('/')
+          .set('Cookie', cookie(res))
+          .expect(shouldSetSessionInStore(store))
+          .expect(200, 'a,c,d', done)
+        })
+      })
+
+      it('should detect array modifications using pop()', function (done) {
+        var store = new session.MemoryStore()
+        var server = createServer({ store: store, resave: false }, function (req, res) {
+          if (!req.session.items) {
+            req.session.items = ['a', 'b', 'c']
+          } else {
+            req.session.items.pop()
+          }
+          res.end(req.session.items.join(','))
+        })
+
+        request(server)
+        .get('/')
+        .expect(shouldSetSessionInStore(store))
+        .expect(200, 'a,b,c', function (err, res) {
+          if (err) return done(err)
+          request(server)
+          .get('/')
+          .set('Cookie', cookie(res))
+          .expect(shouldSetSessionInStore(store))
+          .expect(200, 'a,b', done)
+        })
+      })
+
+      it('should detect array modifications using shift()', function (done) {
+        var store = new session.MemoryStore()
+        var server = createServer({ store: store, resave: false }, function (req, res) {
+          if (!req.session.items) {
+            req.session.items = ['a', 'b', 'c']
+          } else {
+            req.session.items.shift()
+          }
+          res.end(req.session.items.join(','))
+        })
+
+        request(server)
+        .get('/')
+        .expect(shouldSetSessionInStore(store))
+        .expect(200, 'a,b,c', function (err, res) {
+          if (err) return done(err)
+          request(server)
+          .get('/')
+          .set('Cookie', cookie(res))
+          .expect(shouldSetSessionInStore(store))
+          .expect(200, 'b,c', done)
+        })
+      })
+
+      it('should detect array modifications using unshift()', function (done) {
+        var store = new session.MemoryStore()
+        var server = createServer({ store: store, resave: false }, function (req, res) {
+          if (!req.session.items) {
+            req.session.items = ['b', 'c']
+          } else {
+            req.session.items.unshift('a')
+          }
+          res.end(req.session.items.join(','))
+        })
+
+        request(server)
+        .get('/')
+        .expect(shouldSetSessionInStore(store))
+        .expect(200, 'b,c', function (err, res) {
+          if (err) return done(err)
+          request(server)
+          .get('/')
+          .set('Cookie', cookie(res))
+          .expect(shouldSetSessionInStore(store))
+          .expect(200, 'a,b,c', done)
+        })
+      })
+
+      it('should detect array element modifications by index', function (done) {
+        var store = new session.MemoryStore()
+        var server = createServer({ store: store, resave: false }, function (req, res) {
+          if (!req.session.items) {
+            req.session.items = ['a', 'b', 'c']
+          } else {
+            req.session.items[1] = 'modified'
+          }
+          res.end(req.session.items.join(','))
+        })
+
+        request(server)
+        .get('/')
+        .expect(shouldSetSessionInStore(store))
+        .expect(200, 'a,b,c', function (err, res) {
+          if (err) return done(err)
+          request(server)
+          .get('/')
+          .set('Cookie', cookie(res))
+          .expect(shouldSetSessionInStore(store))
+          .expect(200, 'a,modified,c', done)
+        })
+      })
+
+      it('should detect nested array modifications', function (done) {
+        var store = new session.MemoryStore()
+        var server = createServer({ store: store, resave: false }, function (req, res) {
+          if (!req.session.data) {
+            req.session.data = { items: ['a', 'b'] }
+          } else {
+            req.session.data.items.push('c')
+          }
+          res.end(req.session.data.items.join(','))
+        })
+
+        request(server)
+        .get('/')
+        .expect(shouldSetSessionInStore(store))
+        .expect(200, 'a,b', function (err, res) {
+          if (err) return done(err)
+          request(server)
+          .get('/')
+          .set('Cookie', cookie(res))
+          .expect(shouldSetSessionInStore(store))
+          .expect(200, 'a,b,c', done)
+        })
+      })
+
+      it('should detect array of objects modifications', function (done) {
+        var store = new session.MemoryStore()
+        var server = createServer({ store: store, resave: false }, function (req, res) {
+          if (!req.session.users) {
+            req.session.users = [{ name: 'alice' }, { name: 'bob' }]
+          } else {
+            req.session.users[0].name = 'ALICE'
+          }
+          res.end(req.session.users[0].name)
+        })
+
+        request(server)
+        .get('/')
+        .expect(shouldSetSessionInStore(store))
+        .expect(200, 'alice', function (err, res) {
+          if (err) return done(err)
+          request(server)
+          .get('/')
+          .set('Cookie', cookie(res))
+          .expect(shouldSetSessionInStore(store))
+          .expect(200, 'ALICE', done)
+        })
+      })
+
+      it('should not save session when only reading array properties', function (done) {
+        var store = new session.MemoryStore()
+        var server = createServer({ store: store, resave: false }, function (req, res) {
+          if (!req.session.items) {
+            req.session.items = ['a', 'b', 'c']
+          } else {
+            // Only read operations, should not trigger save
+            var len = req.session.items.length
+            var first = req.session.items[0]
+            var joined = req.session.items.join(',')
+          }
+          res.end(String(req.session.items.length))
+        })
+
+        request(server)
+        .get('/')
+        .expect(shouldSetSessionInStore(store))
+        .expect(200, '3', function (err, res) {
+          if (err) return done(err)
+          request(server)
+          .get('/')
+          .set('Cookie', cookie(res))
+          .expect(shouldNotSetSessionInStore(store))
+          .expect(200, '3', done)
+        })
+      })
+
       it('should pass session touch error', function (done) {
         var cb = after(2, done)
         var store = new session.MemoryStore()

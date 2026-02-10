@@ -74,6 +74,8 @@ function Session(req, data) {
   var proxyCache = new WeakMap();
 
   // 递归创建深度代理,用于监听嵌套对象的修改
+  // 原理: 数组方法(push/pop/splice等)本质是对索引和length的set/delete操作
+  // Proxy会自动拦截这些底层变化,无需单独包装数组方法
   function createDeepProxy(obj, root) {
     // 如果已经代理过,直接返回
     if (proxyCache.has(obj)) {
@@ -84,31 +86,40 @@ function Session(req, data) {
     var proxy = new Proxy(obj, {
       get: function(target, prop) {
         var value = target[prop];
-        // 如果值是普通对象,递归代理
-        if (value && typeof value === 'object' && value.constructor === Object) {
+
+        // 如果值是普通对象或数组,递归代理
+        if (value && typeof value === 'object' && (value.constructor === Object || Array.isArray(value))) {
           return createDeepProxy(value, root);
         }
+
         return value;
       },
 
-      set: function(target, prop, value) {
+      set: function(target, prop, value, receiver) {
+        // 过滤无意义的length重写 (arr.length = arr.length)
+        if (prop === 'length' && value === target.length) {
+          return true;
+        }
+
         var oldValue = target[prop];
-        target[prop] = value;
+        var result = Reflect.set(target, prop, value, receiver);
 
         // 只有值真正改变时才标记为已修改
+        // 数组的push/pop/splice等方法会触发索引和length的set,这里会自动检测到
         if (oldValue !== value && !root._initializing && !root._locked) {
           root._modified = true;
         }
 
-        return true;
+        return result;
       },
 
       deleteProperty: function(target, prop) {
         if (prop in target && !root._locked) {
-          delete target[prop];
+          var result = Reflect.deleteProperty(target, prop);
           if (!root._initializing) {
             root._modified = true;
           }
+          return result;
         }
         return true;
       }
@@ -147,8 +158,8 @@ function Session(req, data) {
         return cookieProxy;
       }
 
-      // 如果值是普通对象(非 cookie),返回深度代理以监听嵌套修改
-      if (value && typeof value === 'object' && value.constructor === Object) {
+      // 如果值是普通对象或数组(非 cookie),返回深度代理以监听嵌套修改
+      if (value && typeof value === 'object' && (value.constructor === Object || Array.isArray(value))) {
         return createDeepProxy(value, obj);
       }
 
