@@ -5,6 +5,10 @@
 [![Build Status][ci-image]][ci-url]
 [![Test Coverage][coveralls-image]][coveralls-url]
 
+## 基于 Proxy 拦截的 session实现
+
+原始的 `express-session` 基于 `req.session` 对象的hash比较来判断是否需要保存, 现在通过 `Proxy` 拦截实现, 降低cpu消耗
+
 ## Installation
 
 This is a [Node.js](https://nodejs.org/en/) module available through the
@@ -12,13 +16,13 @@ This is a [Node.js](https://nodejs.org/en/) module available through the
 [`npm install` command](https://docs.npmjs.com/getting-started/installing-npm-packages-locally):
 
 ```sh
-$ npm install express-session
+$ npm install @ijs/express-session
 ```
 
 ## API
 
 ```js
-var session = require('express-session')
+var session = require('@ijs/express-session')
 ```
 
 ### session(options)
@@ -907,12 +911,12 @@ based session store. Supports all backends supported by Fortune (MongoDB, Redis,
 
 ### View counter
 
-A simple example using `express-session` to store page views for a user.
+A simple example using `@ijs/express-session` to store page views for a user.
 
 ```js
 var express = require('express')
 var parseurl = require('parseurl')
-var session = require('express-session')
+var session = require('@ijs/express-session')
 
 var app = express()
 
@@ -949,12 +953,12 @@ app.listen(3000)
 
 ### User login
 
-A simple example using `express-session` to keep a user log in session.
+A simple example using `@ijs/express-session` to keep a user log in session.
 
 ```js
 var escapeHtml = require('escape-html')
 var express = require('express')
-var session = require('express-session')
+var session = require('@ijs/express-session')
 
 var app = express()
 
